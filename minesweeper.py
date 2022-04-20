@@ -11,7 +11,7 @@ CELLSIZE = 30.7
 if ROWS <= COLUMNS: COLUMNS = int(max(FIELD_WIDTH, FIELD_HEIGHT) / CELLSIZE)
 elif COLUMNS <= ROWS: ROWS = int(max(FIELD_WIDTH, FIELD_HEIGHT) / CELLSIZE)
 
-BOMBS = 50
+BOMBS = 100
 
 BACKGROUND = (120, 120, 120)
 GRID = (0, 0, 0)
@@ -174,7 +174,7 @@ def retry():
 def check_inputs():
     mouse_x, mouse_y = pygame.mouse.get_pos()
     button = pygame.mouse.get_pressed(num_buttons=3)
-    if OFFSET_Y < mouse_y < HEIGHT - (HEIGHT * (7.5/100)) and OFFSET_X < mouse_x < WIDTH - OFFSET_X:
+    if OFFSET_Y < mouse_y < HEIGHT - 72 and OFFSET_X < mouse_x < WIDTH - OFFSET_X:
         mouse_x, mouse_y = int((mouse_x - OFFSET_X) / CELLSIZE), int((mouse_y - OFFSET_Y) / CELLSIZE)
         if button[0]:
             return discover((mouse_x, mouse_y))             # -1: lost, 0: ok
