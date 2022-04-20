@@ -23,8 +23,6 @@ pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Minesweeper")
 
-font = pygame.font.SysFont("Arial", 25)
-
 def load_assets():
     global assets
 
