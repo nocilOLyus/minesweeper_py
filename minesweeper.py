@@ -1,4 +1,4 @@
-import pygame, sys
+import pygame, sys, time
 from random import randint
 
 WIDTH, HEIGHT = 1280, 960
@@ -22,6 +22,8 @@ FLAGGED = (0, 255, 0)
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Minesweeper")
+
+field_surf = pygame.surface.Surface((WIDTH, HEIGHT))
 
 def load_assets():
     global assets
@@ -50,44 +52,55 @@ def load_assets():
 
     assets = {"bg": bg_im, "retry": retry_im, "retry_pushed": retry_pushed_im, "numbers": numbers_im, "flag": flag_im, "bomb": bomb_im, "full": full_im, "empty": empty_im, "mines": mines_im}
 
-def draw_field():
-    global field, discovered, assets
+def generate_number_bombs():
+    global field_surf, assets
+    
+    bombs_str = str(BOMBS)
+    number_offset = 52
+    number_bombs_position = (1038, 86)
+    for i, n in enumerate(bombs_str[::-1]):
+        field_surf.blit(assets["numbers"][int(n)], (number_bombs_position[0] + ((2-i) * number_offset), number_bombs_position[1]))
+
+def generate_field():
+    global field, discovered, assets, field_surf
+
+    field_surf.blit(assets["bg"], (0, 0))
 
     for y in range(ROWS):
         for x in range(COLUMNS):
-            if discovered[x][y] == 0:
-                screen.blit(assets["full"], ((x * CELLSIZE) + OFFSET_X, (y * CELLSIZE) + OFFSET_Y))
-            elif discovered[x][y] == 1:
-                if field[x][y] == -1:
-                    screen.blit(assets["bomb"], ((x * CELLSIZE) + OFFSET_X, (y * CELLSIZE) + OFFSET_Y))
+            disco_val = discovered[x][y]
+            field_val = field[x][y]
+            pos = (x * CELLSIZE) + OFFSET_X, (y * CELLSIZE) + OFFSET_Y
+            if disco_val == 0:
+                field_surf.blit(assets["full"], pos)
+            elif disco_val == 1:
+                if field_val == -1:
+                    field_surf.blit(assets["bomb"], pos)
                 else:
-                    screen.blit(assets["mines"][field[x][y]], ((x * CELLSIZE) + OFFSET_X, (y * CELLSIZE) + OFFSET_Y, CELLSIZE, CELLSIZE))
-            elif discovered[x][y] == -1:
-                screen.blit(assets["flag"], ((x * CELLSIZE) + OFFSET_X, (y * CELLSIZE) + OFFSET_Y))
+                    field_surf.blit(assets["mines"][field_val], pos)
+            elif disco_val == -1:
+                field_surf.blit(assets["flag"], pos)
 
-def draw_numbers():
-    global flags, assets
+    generate_numbers()
+    generate_number_bombs()
+
+def generate_numbers():
+    global flags, assets, field_surf
 
     flags_str = str(flags)
-    bombs_str = str(BOMBS)
 
     number_offset = 52
     number_flags_position = (86, 86)
     for i, n in enumerate(flags_str[::-1]):
-        screen.blit(assets["numbers"][int(n)], (number_flags_position[0] + ((2-i) * number_offset), number_flags_position[1]))
-
-    number_bombs_position = (1038, 86)
-    for i, n in enumerate(bombs_str[::-1]):
-        screen.blit(assets["numbers"][int(n)], (number_bombs_position[0] + ((2-i) * number_offset), number_bombs_position[1]))
+        field_surf.blit(assets["numbers"][int(n)], (number_flags_position[0] + ((2-i) * number_offset), number_flags_position[1]))
 
 def update_screen(retry_held=False):
-    global assets
+    global assets, field_surf, screen
 
-    screen.blit(assets["bg"], (0, 0))
-    draw_numbers()
-    if retry_held: screen.blit(assets["retry_pushed"], (594, 86))
-    else: screen.blit(assets["retry"], (594, 86))
-    draw_field()
+    if retry_held: field_surf.blit(assets["retry_pushed"], (594, 86))
+    else: field_surf.blit(assets["retry"], (594, 86))
+
+    screen.blit(field_surf, (0, 0))
     pygame.display.flip()
 
 def increment_neighbors(coord: list):
@@ -106,9 +119,12 @@ def get_neighbors(cell):
 def discover(cell):
     global discovered, field
 
+    change = False
     value = discovered[cell[0]][cell[1]]
     if value >= 0:
-        discovered[cell[0]][cell[1]] = 1
+        if value == 0:
+            discovered[cell[0]][cell[1]] = 1
+            change = True
         value_field = field[cell[0]][cell[1]]
         if value_field == 0:
             neighbors = get_neighbors(cell)
@@ -117,16 +133,18 @@ def discover(cell):
                     neighbor_val = discovered[n[0]][n[1]]
                     if field[n[0]][n[1]] >= 0 and neighbor_val == 0 and neighbor_val != -1:
                         discover(n)
+                        change = True
         elif value_field == -1:
             for y in range(ROWS):
                 for x in range(COLUMNS):
                     discovered[x][y] = 1
+            generate_field()
             return -1               # lost
-    return 0                        # fine
+    return change                   # fine
 
 def flag(cell):
     global flags, discovered, field
-    
+
     value = discovered[cell[0]][cell[1]]
 
     if value == 0:
@@ -137,6 +155,8 @@ def flag(cell):
         else:
             discovered[cell[0]][cell[1]] = 0
             flags -= 1
+        
+    generate_field()
     
 def check_win():
     global flags, discovered, field
@@ -171,13 +191,17 @@ def retry():
         start_x, start_y = randint(0, COLUMNS-1), randint(0, ROWS-1)
     discovered[start_x][start_y] = 1
 
+    generate_field()
+
 def check_inputs():
     mouse_x, mouse_y = pygame.mouse.get_pos()
     button = pygame.mouse.get_pressed(num_buttons=3)
     if OFFSET_Y < mouse_y < HEIGHT - 76 and OFFSET_X < mouse_x < WIDTH - OFFSET_X:
         mouse_x, mouse_y = int((mouse_x - OFFSET_X) / CELLSIZE), int((mouse_y - OFFSET_Y) / CELLSIZE)
         if button[0]:
-            return discover((mouse_x, mouse_y))             # -1: lost, 0: ok
+            change = discover((mouse_x, mouse_y))            # -1: lost, True or False = change
+            if change != False:
+                generate_field()
         elif button[2]:
             return flag((mouse_x, mouse_y))                 # 1: win
     elif 594 <= mouse_x <= 686 and 86 <= mouse_y <= 178:
@@ -186,13 +210,16 @@ def check_inputs():
 
 if __name__ == "__main__":
     load_assets()
+    field_surf.fill(BACKGROUND)
     retry()
-
-    screen.fill(BACKGROUND)
 
     retry_held = False
     playing = True
+
+    update_screen()
     while playing:
+        start = time.time()
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 playing = False
@@ -205,10 +232,14 @@ if __name__ == "__main__":
                             if field[x][y] != -1: discovered[x][y] = 1
                 elif answer == 2:
                     retry_held = True
+                if answer != None: generate_field()
             if event.type == pygame.MOUSEBUTTONUP:
                 retry_held = False
 
         update_screen(retry_held)
+        end = time.time()
+        fps = int(1 / (end - start))
+        print(f"{fps}fps\n")
     
     pygame.quit()
     sys.exit()
